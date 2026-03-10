@@ -4,6 +4,14 @@ Switch between Claude Code backends (MAX, Bedrock) with a single command.
 
 `clp` is a lightweight wrapper around `claude` that manages profiles and AWS SSO authentication. Run `clp` instead of `claude` — it picks the right backend, handles credentials, and launches Claude Code.
 
+## Quick start
+
+Paste this into Claude Code and let it do everything for you:
+
+```
+Install claude-profiles (clp) from https://github.com/mbourmaud/claude-profiles — run the install script, then help me configure it with my AWS SSO profile for Bedrock and a local profile for Claude MAX.
+```
+
 ## Install
 
 ```bash
