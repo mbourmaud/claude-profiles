@@ -1,0 +1,15 @@
+default_profile = "claude.max"
+
+[profiles."claude.max"]
+mode = "local"
+
+[profiles."claude.bedrock"]
+mode = "bedrock"
+aws_profile = "bedrock"
+aws_region = "us-east-2"
+
+# Example: additional Bedrock profiles
+# [profiles."claude.bedrock-prod"]
+# mode = "bedrock"
+# aws_profile = "my-sso-profile"
+# aws_region = "eu-west-1"
