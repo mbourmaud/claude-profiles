@@ -27,13 +27,16 @@ This downloads the latest release binary for your platform and puts it in `~/.lo
 clp
 
 # Launch with a specific profile
-clp claude.bedrock
+clp -p claude.bedrock
 
-# Check profile status & credentials
+# Set a new default profile
+clp --default claude.bedrock
+
+# Show config and credential status
 clp status
 
-# Show current config
-clp config
+# Interactively configure settings
+clp configure
 ```
 
 ## Configuration
@@ -42,6 +45,8 @@ Config lives at `~/.config/claude-profiles/config.toml` (auto-created on first r
 
 ```toml
 default_profile = "claude.max"
+skip_permissions = false
+auto_continue = false
 
 [profiles."claude.max"]
 mode = "local"
@@ -51,6 +56,14 @@ mode = "bedrock"
 aws_profile = "bedrock"
 aws_region = "us-east-2"
 ```
+
+### Top-level options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `default_profile` | — | Profile used when none is specified |
+| `skip_permissions` | `false` | Skip Claude Code permission prompts (`--dangerously-skip-permissions`) |
+| `auto_continue` | `false` | Automatically continue after tool use (`--continue`) |
 
 ### Profile modes
 
