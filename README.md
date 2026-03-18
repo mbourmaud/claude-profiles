@@ -63,7 +63,7 @@ aws_region = "us-east-2"
 |--------|---------|-------------|
 | `default_profile` | — | Profile used when none is specified |
 | `skip_permissions` | `false` | Skip Claude Code permission prompts (`--dangerously-skip-permissions`) |
-| `auto_continue` | `false` | Automatically continue after tool use (`--continue`) |
+| `auto_continue` | `false` | Automatically resume previous session if one exists (`--continue`) |
 
 ### Profile modes
 
