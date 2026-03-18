@@ -1,5 +1,6 @@
 mod aws;
 mod claude;
+mod commands;
 mod config;
 mod session;
 
