@@ -5,44 +5,81 @@ mod config;
 mod session;
 
 use anyhow::Result;
-use config::{Config, ProfileMode};
+use clap::{Parser, Subcommand};
+use config::Config;
+
+#[derive(Parser)]
+#[command(name = "clp", about = "Claude profile manager", version)]
+struct Cli {
+    /// Select a profile for this session
+    #[arg(short, long)]
+    profile: Option<String>,
+
+    /// Set the default profile and exit
+    #[arg(long)]
+    default: Option<String>,
+
+    #[command(subcommand)]
+    command: Option<Commands>,
+
+    /// Extra arguments passed to claude (after --)
+    #[arg(last = true)]
+    claude_args: Vec<String>,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Show config, settings, and credential status
+    Status,
+    /// Interactively configure global settings
+    Configure,
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut args: Vec<String> = std::env::args().skip(1).collect();
+    let cli = Cli::parse();
+    let mut config = Config::load()?;
 
-    let config = Config::load()?;
-
-    // Check for special subcommands
-    if let Some(first) = args.first() {
-        match first.as_str() {
-            "status" => return cmd_status(&config).await,
-            "config" => return cmd_config(&config),
-            _ => {}
-        }
+    // Handle subcommands
+    if let Some(command) = cli.command {
+        return match command {
+            Commands::Status => commands::cmd_status(&config).await,
+            Commands::Configure => commands::cmd_configure(&mut config),
+        };
     }
 
-    // Detect profile from first arg
-    let profile_name = if let Some(first) = args.first() {
-        if config.profiles.contains_key(first.as_str()) {
-            let name = first.clone();
-            args.remove(0);
-            name
-        } else {
-            config.default_profile.clone()
+    // Handle --default: set and exit
+    if let Some(ref name) = cli.default {
+        if config.get_profile(name).is_none() {
+            let available = config.profile_names().join(", ");
+            anyhow::bail!(
+                "Profile '{}' not found. Available profiles: {}",
+                name,
+                available
+            );
         }
-    } else {
-        config.default_profile.clone()
-    };
+        config.default_profile = name.clone();
+        config.save()?;
+        println!("[clp] Default profile set to '{}'", name);
+        return Ok(());
+    }
 
-    let profile = config
-        .get_profile(&profile_name)
-        .ok_or_else(|| anyhow::anyhow!("Profile '{}' not found in config", profile_name))?;
+    // Determine which profile to use
+    let profile_name = cli.profile.unwrap_or_else(|| config.default_profile.clone());
+
+    let profile = config.get_profile(&profile_name).ok_or_else(|| {
+        let available = config.profile_names().join(", ");
+        anyhow::anyhow!(
+            "Profile '{}' not found. Available profiles: {}",
+            profile_name,
+            available
+        )
+    })?;
 
     println!("[clp] Profile: {}", profile_name);
 
     // For Bedrock profiles: ensure credentials are valid
-    if let ProfileMode::Bedrock {
+    if let config::ProfileMode::Bedrock {
         aws_profile,
         aws_region,
     } = &profile.mode
@@ -58,47 +95,13 @@ async fn main() -> Result<()> {
 
     // Find and exec claude
     let bin = claude::find_claude_bin()?;
-    claude::exec_claude(&bin, &profile.mode, &args)?;
+    claude::exec_claude(
+        &bin,
+        &profile.mode,
+        &cli.claude_args,
+        config.skip_permissions,
+        config.auto_continue,
+    )?;
 
-    Ok(())
-}
-
-async fn cmd_status(config: &Config) -> Result<()> {
-    println!("claude-profiles — status\n");
-    println!("Default profile: {}\n", config.default_profile);
-
-    for (name, profile) in &config.profiles {
-        let marker = if name == &config.default_profile {
-            "* "
-        } else {
-            "  "
-        };
-
-        match &profile.mode {
-            ProfileMode::Local => {
-                println!("{}[{}] mode=local (Claude MAX)", marker, name);
-            }
-            ProfileMode::Bedrock {
-                aws_profile,
-                aws_region,
-            } => {
-                let session = aws::AwsSession::new(aws_profile.clone(), aws_region.clone());
-                let valid = session.credentials_valid().await;
-                let status = if valid { "✓ valid" } else { "✗ expired" };
-                println!(
-                    "{}[{}] mode=bedrock profile={} region={} credentials={}",
-                    marker, name, aws_profile, aws_region, status
-                );
-            }
-        }
-    }
-
-    Ok(())
-}
-
-fn cmd_config(config: &Config) -> Result<()> {
-    println!("Config path: {}", Config::path().display());
-    println!("\nCurrent config:\n");
-    println!("{}", toml::to_string_pretty(config)?);
     Ok(())
 }
