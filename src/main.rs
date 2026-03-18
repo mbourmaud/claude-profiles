@@ -1,6 +1,7 @@
 mod aws;
 mod claude;
 mod config;
+mod session;
 
 use anyhow::Result;
 use config::{Config, ProfileMode};
