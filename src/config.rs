@@ -24,6 +24,10 @@ pub struct Profile {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
     pub default_profile: String,
+    #[serde(default)]
+    pub skip_permissions: bool,
+    #[serde(default)]
+    pub auto_continue: bool,
     pub profiles: HashMap<String, Profile>,
 }
 
@@ -63,6 +67,12 @@ impl Config {
     pub fn get_profile(&self, name: &str) -> Option<&Profile> {
         self.profiles.get(name)
     }
+
+    pub fn profile_names(&self) -> Vec<&str> {
+        let mut names: Vec<&str> = self.profiles.keys().map(|s| s.as_str()).collect();
+        names.sort();
+        names
+    }
 }
 
 impl Default for Config {
@@ -88,6 +98,8 @@ impl Default for Config {
 
         Self {
             default_profile: "claude.max".to_string(),
+            skip_permissions: false,
+            auto_continue: false,
             profiles,
         }
     }
