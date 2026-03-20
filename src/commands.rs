@@ -1,7 +1,7 @@
 use anyhow::Result;
 use dialoguer::{Confirm, Select};
 use crate::aws;
-use crate::config::{Config, ProfileMode};
+use crate::config::{Config, ProfileMode, UpdateCheck};
 
 pub async fn cmd_status(config: &Config) -> Result<()> {
     println!("claude-profiles v{}\n", env!("CARGO_PKG_VERSION"));
@@ -16,6 +16,7 @@ pub async fn cmd_status(config: &Config) -> Result<()> {
         "  auto_continue:    {}",
         if config.auto_continue { "on" } else { "off" }
     );
+    println!("  update_check:     {}", config.update_check);
 
     println!("\nProfiles:");
     let names = config.profile_names();
@@ -89,9 +90,34 @@ pub fn cmd_configure(config: &mut Config) -> Result<()> {
         return Ok(());
     };
 
+    let update_options = ["notify", "auto", "off"];
+    let current_update_idx = match config.update_check {
+        UpdateCheck::Notify => 0,
+        UpdateCheck::Auto => 1,
+        UpdateCheck::Off => 2,
+    };
+
+    let update_idx = Select::new()
+        .with_prompt("Check for updates (notify = show message, auto = self-update, off = skip)")
+        .items(&update_options)
+        .default(current_update_idx)
+        .interact_opt()?;
+
+    let Some(update_idx) = update_idx else {
+        println!("Cancelled. No changes saved.");
+        return Ok(());
+    };
+
+    let update_check = match update_idx {
+        0 => UpdateCheck::Notify,
+        1 => UpdateCheck::Auto,
+        _ => UpdateCheck::Off,
+    };
+
     config.default_profile = names[default_idx].clone();
     config.skip_permissions = skip_permissions;
     config.auto_continue = auto_continue;
+    config.update_check = update_check;
     config.save()?;
 
     println!("\nSettings saved:");
@@ -104,6 +130,7 @@ pub fn cmd_configure(config: &mut Config) -> Result<()> {
         "  auto_continue:    {}",
         if config.auto_continue { "on" } else { "off" }
     );
+    println!("  update_check:     {}", config.update_check);
 
     Ok(())
 }

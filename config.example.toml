@@ -1,6 +1,7 @@
 default_profile = "claude.max"
 skip_permissions = false
 auto_continue = false
+update_check = "notify"  # "notify", "auto", or "off"
 
 [profiles."claude.max"]
 mode = "local"

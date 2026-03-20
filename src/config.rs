@@ -5,6 +5,25 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum UpdateCheck {
+    #[default]
+    Notify,
+    Auto,
+    Off,
+}
+
+impl std::fmt::Display for UpdateCheck {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            UpdateCheck::Notify => write!(f, "notify"),
+            UpdateCheck::Auto => write!(f, "auto"),
+            UpdateCheck::Off => write!(f, "off"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(tag = "mode", rename_all = "lowercase")]
 pub enum ProfileMode {
@@ -28,6 +47,8 @@ pub struct Config {
     pub skip_permissions: bool,
     #[serde(default)]
     pub auto_continue: bool,
+    #[serde(default)]
+    pub update_check: UpdateCheck,
     pub profiles: HashMap<String, Profile>,
 }
 
@@ -100,6 +121,7 @@ impl Default for Config {
             default_profile: "claude.max".to_string(),
             skip_permissions: false,
             auto_continue: false,
+            update_check: UpdateCheck::default(),
             profiles,
         }
     }
