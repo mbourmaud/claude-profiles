@@ -245,6 +245,7 @@ impl AwsSession {
                 .find_map(|line| {
                     let line = line.trim();
                     line.strip_prefix(key)
+                        .map(|rest| rest.trim_start())
                         .and_then(|rest| rest.strip_prefix('='))
                         .map(|v| v.trim().to_string())
                 })
