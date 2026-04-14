@@ -38,6 +38,12 @@ pub enum ProfileMode {
 pub struct Profile {
     #[serde(flatten)]
     pub mode: ProfileMode,
+    /// Default Claude model to use (e.g., "anthropic.claude-sonnet-4-6")
+    #[serde(default)]
+    pub default_model: Option<String>,
+    /// Custom environment variables to set for this profile
+    #[serde(default)]
+    pub env: HashMap<String, String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -104,8 +110,13 @@ impl Default for Config {
             "claude.max".to_string(),
             Profile {
                 mode: ProfileMode::Local,
+                default_model: Some("claude-sonnet-4-6".to_string()),
+                env: HashMap::new(),
             },
         );
+
+        let mut bedrock_env = HashMap::new();
+        bedrock_env.insert("CLAUDE_MODEL".to_string(), "anthropic.claude-sonnet-4-6".to_string());
 
         profiles.insert(
             "claude.bedrock".to_string(),
@@ -114,6 +125,8 @@ impl Default for Config {
                     aws_profile: "bedrock".to_string(),
                     aws_region: "us-east-2".to_string(),
                 },
+                default_model: Some("anthropic.claude-sonnet-4-6".to_string()),
+                env: bedrock_env,
             },
         );
 

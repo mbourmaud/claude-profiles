@@ -32,7 +32,7 @@ pub fn find_claude_bin() -> Result<String> {
 /// Apply environment variables for the given profile mode, then exec claude.
 pub fn exec_claude(
     bin: &str,
-    mode: &ProfileMode,
+    profile: &crate::config::Profile,
     args: &[String],
     skip_permissions: bool,
     auto_continue: bool,
@@ -56,8 +56,21 @@ pub fn exec_claude(
     cmd.env_remove("CLAUDE_CODE_USE_BEDROCK");
     cmd.env_remove("AWS_PROFILE");
     cmd.env_remove("AWS_REGION");
+    cmd.env_remove("CLAUDE_MODEL");
 
-    match mode {
+    // Set custom environment variables from profile
+    for (key, value) in &profile.env {
+        cmd.env(key, value);
+    }
+
+    // Set default model if specified (but allow env override)
+    if let Some(model) = &profile.default_model {
+        if !profile.env.contains_key("CLAUDE_MODEL") {
+            cmd.env("CLAUDE_MODEL", model);
+        }
+    }
+
+    match &profile.mode {
         ProfileMode::Local => {
             // Nothing extra — use personal Claude MAX subscription
         }

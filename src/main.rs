@@ -123,7 +123,7 @@ async fn main() -> Result<()> {
     let bin = claude::find_claude_bin()?;
     claude::exec_claude(
         &bin,
-        &profile.mode,
+        profile,
         &cli.claude_args,
         config.skip_permissions,
         config.auto_continue,

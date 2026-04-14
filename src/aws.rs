@@ -1,8 +1,10 @@
 use std::io::{self, Write};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::{anyhow, Context, Result};
 use aws_config::BehaviorVersion;
+use aws_sdk_ssooidc::error::SdkError;
+use aws_sdk_ssooidc::operation::create_token::CreateTokenError;
 use aws_sdk_ssooidc::Client as OidcClient;
 
 pub struct AwsSession {
@@ -20,6 +22,12 @@ impl AwsSession {
 
     /// Check if credentials for the profile are valid via STS get-caller-identity.
     pub async fn credentials_valid(&self) -> bool {
+        // First check if credentials are locally expired
+        if self.credentials_expired_locally() {
+            return false;
+        }
+
+        // If not expired locally, verify with AWS
         let config = aws_config::defaults(BehaviorVersion::latest())
             .profile_name(&self.aws_profile)
             .region(aws_config::Region::new(self.aws_region.clone()))
@@ -90,9 +98,16 @@ impl AwsSession {
         let expires_in = auth.expires_in() as u64;
 
         println!(
-            "\n[clp] Open this URL in your browser:\n  {}\n",
+            "\n[clp] Opening authorization URL in your browser:\n  {}\n",
             verification_url
         );
+
+        // Try to open the URL in the default browser
+        if let Err(e) = webbrowser::open(&verification_url) {
+            println!("[clp] Failed to open browser automatically: {}", e);
+            println!("[clp] Please manually open the URL above.");
+        }
+
         if !user_code.is_empty() {
             println!(
                 "[clp] Or go to {} and enter code: {}\n",
@@ -126,10 +141,17 @@ impl AwsSession {
             {
                 Ok(resp) => break resp,
                 Err(e) => {
-                    let msg = e.to_string();
-                    if msg.contains("AuthorizationPending") || msg.contains("SlowDown") {
-                        continue;
+                    if let SdkError::ServiceError(ref svc) = e {
+                        match svc.err() {
+                            CreateTokenError::AuthorizationPendingException(_) => continue,
+                            CreateTokenError::SlowDownException(_) => {
+                                tokio::time::sleep(Duration::from_secs(interval)).await;
+                                continue;
+                            }
+                            _ => {}
+                        }
                     }
+                    let msg = format!("{:?}", e);
                     return Err(anyhow!("SSO token error: {}", msg));
                 }
             }
@@ -194,9 +216,15 @@ impl AwsSession {
         };
 
         let header = format!("[{}]", self.aws_profile);
+
+        // Calculate expiration time (SSO tokens typically last 8 hours, we use 7 hours to be safe)
+        let expiry = SystemTime::now()
+            .duration_since(UNIX_EPOCH)?
+            .as_secs() + (7 * 3600); // 7 hours from now
+
         let new_section = format!(
-            "{}\naws_access_key_id = {}\naws_secret_access_key = {}\naws_session_token = {}\n",
-            header, access_key_id, secret_access_key, session_token,
+            "{}\naws_access_key_id = {}\naws_secret_access_key = {}\naws_session_token = {}\n# expires_at = {}\n",
+            header, access_key_id, secret_access_key, session_token, expiry
         );
 
         if let Some(start) = content.find(&header) {
@@ -219,6 +247,43 @@ impl AwsSession {
         }
         std::fs::write(&creds_path, content)?;
         Ok(())
+    }
+
+    /// Check if credentials are still valid by checking expiration time first
+    fn credentials_expired_locally(&self) -> bool {
+        let creds_path = dirs::home_dir()
+            .unwrap_or_default()
+            .join(".aws")
+            .join("credentials");
+
+        let Ok(content) = std::fs::read_to_string(&creds_path) else {
+            return true; // No credentials file means expired
+        };
+
+        let header = format!("[{}]", self.aws_profile);
+        let Some(start) = content.find(&header) else {
+            return true; // Profile not found means expired
+        };
+
+        let rest = &content[start + header.len()..];
+        let end = rest.find("\n[").unwrap_or(rest.len());
+        let section = &rest[..end];
+
+        // Look for our expiry comment
+        for line in section.lines() {
+            if let Some(expiry_str) = line.strip_prefix("# expires_at = ") {
+                if let Ok(expiry) = expiry_str.trim().parse::<u64>() {
+                    let now = SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs();
+                    return now >= expiry; // Expired if current time >= expiry time
+                }
+            }
+        }
+
+        // No expiry found, assume expired to be safe
+        true
     }
 
     fn load_profile_sso_config(&self) -> Result<SsoProfileConfig> {

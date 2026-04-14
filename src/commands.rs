@@ -1,7 +1,19 @@
 use anyhow::Result;
-use dialoguer::{Confirm, Select};
+use dialoguer::{Confirm, Input, Select};
 use crate::aws;
 use crate::config::{Config, ProfileMode, UpdateCheck};
+
+/// Check if an environment variable name might contain sensitive information
+fn is_sensitive_env_var(key: &str) -> bool {
+    let key_lower = key.to_lowercase();
+    key_lower.contains("key") ||
+    key_lower.contains("secret") ||
+    key_lower.contains("token") ||
+    key_lower.contains("password") ||
+    key_lower.contains("pass") ||
+    key_lower.contains("credential") ||
+    key_lower.contains("auth")
+}
 
 pub async fn cmd_status(config: &Config) -> Result<()> {
     println!("claude-profiles v{}\n", env!("CARGO_PKG_VERSION"));
@@ -29,9 +41,15 @@ pub async fn cmd_status(config: &Config) -> Result<()> {
             " "
         };
 
+        let model_info = profile
+            .default_model
+            .as_ref()
+            .map(|m| format!(" model={}", m))
+            .unwrap_or_default();
+
         match &profile.mode {
             ProfileMode::Local => {
-                println!("  {} [{}]  mode=local (Claude MAX)", marker, name);
+                println!("  {} [{}]  mode=local (Claude MAX){}", marker, name, model_info);
             }
             ProfileMode::Bedrock {
                 aws_profile,
@@ -41,9 +59,26 @@ pub async fn cmd_status(config: &Config) -> Result<()> {
                 let valid = session.credentials_valid().await;
                 let status = if valid { "✓ valid" } else { "✗ expired" };
                 println!(
-                    "  {} [{}]  mode=bedrock profile={} region={} credentials={}",
-                    marker, name, aws_profile, aws_region, status
+                    "  {} [{}]  mode=bedrock profile={} region={} credentials={}{}",
+                    marker, name, aws_profile, aws_region, status, model_info
                 );
+            }
+        }
+
+        // Show environment variables (non-sensitive config)
+        if !profile.env.is_empty() {
+            println!("           env:");
+            let mut env_vars: Vec<_> = profile.env.iter().collect();
+            env_vars.sort_by_key(|(k, _)| *k);
+
+            for (key, value) in env_vars {
+                // Skip displaying values that might be sensitive
+                let display_value = if is_sensitive_env_var(key) {
+                    "[hidden]".to_string()
+                } else {
+                    value.clone()
+                };
+                println!("             {}={}", key, display_value);
             }
         }
     }
@@ -114,6 +149,23 @@ pub fn cmd_configure(config: &mut Config) -> Result<()> {
         _ => UpdateCheck::Off,
     };
 
+    // Configure default model for the selected profile
+    let profile_name = &names[default_idx];
+    let profile = config.profiles.get_mut(profile_name).unwrap();
+
+    let current_model = profile.default_model.clone().unwrap_or_default();
+    let new_model: String = Input::new()
+        .with_prompt("Default Claude model (leave empty for Claude Code default, or use 'anthropic.claude-sonnet-4-6')")
+        .default(current_model)
+        .allow_empty(true)
+        .interact_text()?;
+
+    profile.default_model = if new_model.is_empty() {
+        None
+    } else {
+        Some(new_model)
+    };
+
     config.default_profile = names[default_idx].clone();
     config.skip_permissions = skip_permissions;
     config.auto_continue = auto_continue;
@@ -131,6 +183,15 @@ pub fn cmd_configure(config: &mut Config) -> Result<()> {
         if config.auto_continue { "on" } else { "off" }
     );
     println!("  update_check:     {}", config.update_check);
+
+    // Show the model configuration for the default profile
+    if let Some(profile) = config.get_profile(&config.default_profile) {
+        if let Some(model) = &profile.default_model {
+            println!("  default_model:    {}", model);
+        } else {
+            println!("  default_model:    (using Claude Code default)");
+        }
+    }
 
     Ok(())
 }
