@@ -64,10 +64,10 @@ pub fn exec_claude(
     }
 
     // Set default model if specified (but allow env override)
-    if let Some(model) = &profile.default_model {
-        if !profile.env.contains_key("CLAUDE_MODEL") {
-            cmd.env("CLAUDE_MODEL", model);
-        }
+    if let Some(model) = &profile.default_model
+        && !profile.env.contains_key("CLAUDE_MODEL")
+    {
+        cmd.env("CLAUDE_MODEL", model);
     }
 
     match &profile.mode {

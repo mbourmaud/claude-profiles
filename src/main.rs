@@ -42,27 +42,27 @@ async fn main() -> Result<()> {
     let mut config = Config::load()?;
 
     // Check for updates
-    if config.update_check != UpdateCheck::Off {
-        if let Some(release) = update::check_for_update().await {
-            match config.update_check {
-                UpdateCheck::Auto => {
-                    match update::self_update(&release).await {
-                        Ok(()) => println!(
-                            "[clp] Updated to v{} (restart to use new version)",
-                            release.version
-                        ),
-                        Err(e) => eprintln!("[clp] Auto-update failed: {}", e),
-                    }
-                }
-                UpdateCheck::Notify => {
-                    println!(
-                        "[clp] Update available: v{} → v{} (run `clp configure` to enable auto-update)",
-                        env!("CARGO_PKG_VERSION"),
+    if config.update_check != UpdateCheck::Off
+        && let Some(release) = update::check_for_update().await
+    {
+        match config.update_check {
+            UpdateCheck::Auto => {
+                match update::self_update(&release).await {
+                    Ok(()) => println!(
+                        "[clp] Updated to v{} (restart to use new version)",
                         release.version
-                    );
+                    ),
+                    Err(e) => eprintln!("[clp] Auto-update failed: {}", e),
                 }
-                UpdateCheck::Off => unreachable!(),
             }
+            UpdateCheck::Notify => {
+                println!(
+                    "[clp] Update available: v{} → v{} (run `clp configure` to enable auto-update)",
+                    env!("CARGO_PKG_VERSION"),
+                    release.version
+                );
+            }
+            UpdateCheck::Off => unreachable!(),
         }
     }
 

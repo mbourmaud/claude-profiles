@@ -271,14 +271,14 @@ impl AwsSession {
 
         // Look for our expiry comment
         for line in section.lines() {
-            if let Some(expiry_str) = line.strip_prefix("# expires_at = ") {
-                if let Ok(expiry) = expiry_str.trim().parse::<u64>() {
-                    let now = SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs();
-                    return now >= expiry; // Expired if current time >= expiry time
-                }
+            if let Some(expiry_str) = line.strip_prefix("# expires_at = ")
+                && let Ok(expiry) = expiry_str.trim().parse::<u64>()
+            {
+                let now = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
+                return now >= expiry; // Expired if current time >= expiry time
             }
         }
 
