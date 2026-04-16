@@ -20,6 +20,10 @@ struct Cli {
     #[arg(long)]
     default: Option<String>,
 
+    /// Print resolved env and command before exec
+    #[arg(short, long)]
+    verbose: bool,
+
     #[command(subcommand)]
     command: Option<Commands>,
 
@@ -127,6 +131,7 @@ async fn main() -> Result<()> {
         &cli.claude_args,
         config.skip_permissions,
         config.auto_continue,
+        cli.verbose,
     )?;
 
     Ok(())
