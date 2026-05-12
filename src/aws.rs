@@ -185,10 +185,23 @@ impl AwsSession {
             .role_credentials()
             .ok_or_else(|| anyhow!("No role_credentials in response"))?;
 
+        // expiration() is milliseconds since epoch; convert to seconds.
+        // Fall back to 8 hours if the value is missing or invalid.
+        let expiry_secs: u64 = {
+            let ms = role_creds.expiration();
+            if ms > 0 {
+                (ms / 1000) as u64
+            } else {
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)?
+                    .as_secs() + (8 * 3600)
+            }
+        };
         self.write_credentials(
             role_creds.access_key_id().unwrap_or(""),
             role_creds.secret_access_key().unwrap_or(""),
             role_creds.session_token().unwrap_or(""),
+            expiry_secs,
         )?;
 
         println!(
@@ -203,6 +216,7 @@ impl AwsSession {
         access_key_id: &str,
         secret_access_key: &str,
         session_token: &str,
+        expiry_secs: u64,
     ) -> Result<()> {
         let creds_path = dirs::home_dir()
             .unwrap_or_default()
@@ -217,10 +231,7 @@ impl AwsSession {
 
         let header = format!("[{}]", self.aws_profile);
 
-        // Calculate expiration time (SSO tokens typically last 8 hours, we use 7 hours to be safe)
-        let expiry = SystemTime::now()
-            .duration_since(UNIX_EPOCH)?
-            .as_secs() + (7 * 3600); // 7 hours from now
+        let expiry = expiry_secs;
 
         let new_section = format!(
             "{}\naws_access_key_id = {}\naws_secret_access_key = {}\naws_session_token = {}\n# expires_at = {}\n",

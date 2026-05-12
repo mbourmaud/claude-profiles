@@ -3,8 +3,9 @@ use std::path::PathBuf;
 
 /// Check if a Claude session exists for the current working directory.
 ///
-/// Claude stores sessions in `~/.claude/projects/<project-key>/sessions-index.json`
-/// where `<project-key>` is the absolute working directory path with `/` replaced by `-`.
+/// Claude 4.x stores sessions as `<uuid>.jsonl` files in
+/// `~/.claude/projects/<project-key>/` where `<project-key>` is the absolute
+/// working directory path with `/` replaced by `-`.
 pub fn has_existing_session() -> bool {
     let cwd = match env::current_dir() {
         Ok(p) => p,
@@ -15,10 +16,17 @@ pub fn has_existing_session() -> bool {
         .to_string_lossy()
         .replace('/', "-");
 
-    let session_index = claude_projects_dir().join(&project_key).join("sessions-index.json");
+    let project_dir = claude_projects_dir().join(&project_key);
 
-    match std::fs::metadata(&session_index) {
-        Ok(meta) => meta.len() > 0,
+    match std::fs::read_dir(&project_dir) {
+        Ok(entries) => entries
+            .filter_map(|e| e.ok())
+            .any(|e| {
+                e.path()
+                    .extension()
+                    .and_then(|ext| ext.to_str())
+                    == Some("jsonl")
+            }),
         Err(_) => false,
     }
 }

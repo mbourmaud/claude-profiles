@@ -44,7 +44,8 @@ pub fn exec_claude(
         claude_args.push("--dangerously-skip-permissions".to_string());
     }
 
-    if auto_continue && session::has_existing_session() {
+    let user_already_has_continue = args.iter().any(|a| a == "--continue");
+    if auto_continue && !user_already_has_continue && session::has_existing_session() {
         claude_args.push("--continue".to_string());
     }
 
