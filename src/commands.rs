@@ -149,22 +149,28 @@ pub fn cmd_configure(config: &mut Config) -> Result<()> {
         _ => UpdateCheck::Off,
     };
 
-    // Configure default model for the selected profile
-    let profile_name = &names[default_idx];
-    let profile = config.profiles.get_mut(profile_name).unwrap();
-
-    let current_model = profile.default_model.clone().unwrap_or_default();
-    let new_model: String = Input::new()
-        .with_prompt("Default Claude model (leave empty for Claude Code default, or use 'anthropic.claude-sonnet-4-6')")
-        .default(current_model)
-        .allow_empty(true)
-        .interact_text()?;
-
-    profile.default_model = if new_model.is_empty() {
-        None
-    } else {
-        Some(new_model)
+    // Configure default model for each profile
+    let model_hint = |mode: &ProfileMode| match mode {
+        ProfileMode::Local => "e.g. claude-opus-4-6[1m]",
+        ProfileMode::Bedrock { .. } => "e.g. eu.anthropic.claude-sonnet-4-6[1m]",
     };
+
+    let mut new_models: Vec<(String, Option<String>)> = Vec::new();
+    for name in &names {
+        let profile = config.profiles.get(name).unwrap();
+        let current_model = profile.default_model.clone().unwrap_or_default();
+        let prompt = format!("Default model for [{}] ({}, leave empty for Claude Code default)", name, model_hint(&profile.mode));
+        let new_model: String = Input::new()
+            .with_prompt(prompt)
+            .default(current_model)
+            .allow_empty(true)
+            .interact_text()?;
+        new_models.push((name.clone(), if new_model.is_empty() { None } else { Some(new_model) }));
+    }
+
+    for (name, model) in new_models {
+        config.profiles.get_mut(&name).unwrap().default_model = model;
+    }
 
     config.default_profile = names[default_idx].clone();
     config.skip_permissions = skip_permissions;
@@ -183,14 +189,12 @@ pub fn cmd_configure(config: &mut Config) -> Result<()> {
         if config.auto_continue { "on" } else { "off" }
     );
     println!("  update_check:     {}", config.update_check);
-
-    // Show the model configuration for the default profile
-    if let Some(profile) = config.get_profile(&config.default_profile) {
-        if let Some(model) = &profile.default_model {
-            println!("  default_model:    {}", model);
-        } else {
-            println!("  default_model:    (using Claude Code default)");
-        }
+    println!("  models:");
+    for name in &names {
+        let profile = config.get_profile(name).unwrap();
+        let model = profile.default_model.as_deref().unwrap_or("(Claude Code default)");
+        let marker = if *name == config.default_profile { "*" } else { " " };
+        println!("    {} [{}]: {}", marker, name, model);
     }
 
     Ok(())
