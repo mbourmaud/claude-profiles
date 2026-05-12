@@ -9,33 +9,16 @@ use aws_sdk_ssooidc::Client as OidcClient;
 
 pub struct AwsSession {
     pub aws_profile: String,
-    pub aws_region: String,
 }
 
 impl AwsSession {
-    pub fn new(aws_profile: String, aws_region: String) -> Self {
-        Self {
-            aws_profile,
-            aws_region,
-        }
+    pub fn new(aws_profile: String) -> Self {
+        Self { aws_profile }
     }
 
-    /// Check if credentials for the profile are valid via STS get-caller-identity.
+    /// Check if credentials for the profile are still locally valid.
     pub async fn credentials_valid(&self) -> bool {
-        // First check if credentials are locally expired
-        if self.credentials_expired_locally() {
-            return false;
-        }
-
-        // If not expired locally, verify with AWS
-        let config = aws_config::defaults(BehaviorVersion::latest())
-            .profile_name(&self.aws_profile)
-            .region(aws_config::Region::new(self.aws_region.clone()))
-            .load()
-            .await;
-
-        let sts = aws_sdk_sts::Client::new(&config);
-        sts.get_caller_identity().send().await.is_ok()
+        !self.credentials_expired_locally()
     }
 
     /// SSO login via OIDC device authorization grant.

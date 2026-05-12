@@ -111,10 +111,10 @@ async fn main() -> Result<()> {
     // For Bedrock profiles: ensure credentials are valid
     if let config::ProfileMode::Bedrock {
         aws_profile,
-        aws_region,
+        aws_region: _,
     } = &profile.mode
     {
-        let session = aws::AwsSession::new(aws_profile.clone(), aws_region.clone());
+        let session = aws::AwsSession::new(aws_profile.clone());
 
         if !session.credentials_valid().await {
             session.sso_login().await?;

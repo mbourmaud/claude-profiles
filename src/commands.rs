@@ -55,7 +55,7 @@ pub async fn cmd_status(config: &Config) -> Result<()> {
                 aws_profile,
                 aws_region,
             } => {
-                let session = aws::AwsSession::new(aws_profile.clone(), aws_region.clone());
+                let session = aws::AwsSession::new(aws_profile.clone());
                 let valid = session.credentials_valid().await;
                 let status = if valid { "✓ valid" } else { "✗ expired" };
                 println!(
